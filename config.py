@@ -1,0 +1,5 @@
+SSH_USER = ''
+URL = ''
+DB = ''
+MYSQL_USER = ''
+MYSQL_PASS = ''
