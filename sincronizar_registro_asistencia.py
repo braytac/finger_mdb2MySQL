@@ -7,7 +7,7 @@ import pymysql
 from paramiko import SSHClient
 from sshtunnel import SSHTunnelForwarder
 import datetime
-
+from config import *
 
 """
 with SSHTunnelForwarder(
@@ -24,10 +24,6 @@ with SSHTunnelForwarder(
 
         conn.close()
 """;
-
-
-# In[19]:
-
 
 def consulta(query):
     server = SSHTunnelForwarder(
@@ -66,9 +62,6 @@ def consulta(query):
 
 
 # # IMPORTANDO USUARIOS NUEVOS
-
-# In[126]:
-
 
 max_userid = consulta('SELECT MAX(id) FROM USERINFO')
 max_userid = max_userid.fetchall()[0][0]
@@ -182,4 +175,3 @@ for row in chks.fetchall():
     insert += "('"+str(row[0])+"','"+str(row[1])+"','"+str(row[2])+"'),"
 insert = insert[:-1]
 """;
-
