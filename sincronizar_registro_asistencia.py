@@ -1,14 +1,19 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+# In[18]:
+
+
 import pyodbc
 import pymysql
 #import pandas as pd
 from paramiko import SSHClient
 from sshtunnel import SSHTunnelForwarder
 import datetime
+from pathlib import Path
 from config import *
 
+DIFF_IDS = 0
 """
 with SSHTunnelForwarder(
         ('', 22),
@@ -25,11 +30,15 @@ with SSHTunnelForwarder(
         conn.close()
 """;
 
+
+# In[19]:
+
+
 def consulta(query):
     server = SSHTunnelForwarder(
             (URL, 22),
             ssh_username = SSH_USER,
-            ssh_password = SSH_USER,
+            ssh_password = SSH_PWD,
             remote_bind_address = ('127.0.0.1', 3306)
     )
             #data = pd.read_sql_query('SELECT * FROM USERINFO', conn)
@@ -63,15 +72,18 @@ def consulta(query):
 
 # # IMPORTANDO USUARIOS NUEVOS
 
+# In[126]:
+
+
 max_userid = consulta('SELECT MAX(id) FROM USERINFO')
 max_userid = max_userid.fetchall()[0][0]
 if max_userid == None:
     max_userid = 0
     
-#D:\access2sql\Finance.accdbb
+
 conn_str = (
     r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};'
-    r'DBQ=D:\Base\ATT2000-ANDA-2008.MDB;'
+    r'DBQ='+MDB_FILE+';'
     )
 conn = pyodbc.connect(conn_str)
 query = "SELECT USERID,Badgenumber,Name FROM USERINFO WHERE USERID > ? "
@@ -82,10 +94,10 @@ cursor.execute(query,str(max_userid))
 # build list of column names to use as dictionary keys from sql results
 #columns = [column[0] for column in cursor.description]
 
-insert = """INSERT IGNORE INTO USERINFO (id,dni,nombre_apellido) VALUES """
+insert = """INSERT INTO USERINFO (id,dni,nombre_apellido) VALUES """
 i = 0
 for row in cursor.fetchall():
-    if i == 20000:
+    if i == PORCION:
         break
     insert += "('"+str(row[0])+"','"+str(row[1])+"','"+str(row[2])+"'),"
     i = i + 1 
@@ -98,6 +110,7 @@ insert = insert[:-1]
 #dataf = pd.read_sql_query(query, cnxn)
 conn.close()
 if i > 0:
+    print("Agregando usuarios nuevos")
     result = consulta(insert)
 print("Anterior MAX USER ID: "+str(max_userid))
 print("Nuevo MAX USER ID: "+str(max_userid+i))
@@ -110,33 +123,37 @@ print("Nuevo MAX USER ID: "+str(max_userid+i))
 
 
 #import json
-# HAY 916593 registros de mas en MySQL
-DIFF_IDS = 916594
-max_chkid = consulta('SELECT MAX(id_inc)-'+str(DIFF_IDS)+' FROM CHECKINOUT')
-max_chkid = max_chkid.fetchall()[0][0]
-if max_chkid == None:
-    max_chkid = 0
 
-#D:\access2sql\Finance.accdbb
+max_chkidfecha = consulta("SELECT fecha FROM CHECKINOUT WHERE  id_inc=(SELECT MAX(ch1.id_inc) FROM CHECKINOUT ch1 WHERE YEAR(fecha)<'2100' )")
+
+if max_chkidfecha.rowcount == 0:
+    max_chkidfecha = '2000-01-01 00:00:00'
+else:
+    max_chkidfecha = max_chkidfecha.fetchall()[0][0]
+#if max_chkidfecha == None:
+    
+
+
 conn_str = (
     r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};'
-    r'DBQ=D:\Base\ATT2000-ANDA-2008.MDB;'
+    r'DBQ='+MDB_FILE+';'
     )
 conn = pyodbc.connect(conn_str)
-query = "SELECT id, USERID,CHECKTIME FROM CHECKINOUT WHERE id>?"
-
+query = "SELECT TOP "+str(PORCION)+" id, USERID,CHECKTIME,SENSORID FROM CHECKINOUT WHERE CHECKTIME>? ORDER BY CHECKTIME ASC"
+print("Seleccionando fechas superiores a: "+str(max_chkidfecha))
 cursor = conn.cursor()
-cursor.execute(query,str(max_chkid))
+cursor.execute(query,str(max_chkidfecha))
 
 # build list of column names to use as dictionary keys from sql results
 #columns = [column[0] for column in cursor.description]
 
-insert = """INSERT IGNORE INTO CHECKINOUT (id_inc,id,fecha) VALUES """
+insert = """INSERT IGNORE INTO CHECKINOUT (id,fecha,sensor_id) VALUES """
 i = 0
 for row in cursor.fetchall():
-    if i == 20000:
+    if i == PORCION:
         break
-    insert += "('"+str(row[0]+DIFF_IDS)+"','"+str(row[1])+"','"+str(row[2])+"'),"
+    insert += "('"+str(row[1])+"','"+str(row[2])+"','"+str(row[3])+"'),"
+    max_fecha = row[2]
     i = i + 1 
 insert = insert[:-1]
 #print(insert)
@@ -148,8 +165,10 @@ insert = insert[:-1]
 conn.close()
 if i > 0:
     result = consulta(insert)
-print("Anterior MAX ID: "+str(max_chkid))
-print("Nuevo MAX ID: "+str(max_chkid+i))
+print("Anterior Max. Fecha: " + str(max_chkidfecha))
+print("Nueva Max. Fecha importada: " + str(max_fecha))
+#print("Anterior MAX ID: "+str(max_chkid))
+#print("Nuevo MAX ID: "+str(max_chkid+i))
 #dataf
 
 
@@ -175,3 +194,4 @@ for row in chks.fetchall():
     insert += "('"+str(row[0])+"','"+str(row[1])+"','"+str(row[2])+"'),"
 insert = insert[:-1]
 """;
+
